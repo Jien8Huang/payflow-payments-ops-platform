@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS audit_events;
+DROP TABLE IF EXISTS dashboard_users;
+DROP TABLE IF EXISTS api_keys;
+DROP TABLE IF EXISTS tenants;

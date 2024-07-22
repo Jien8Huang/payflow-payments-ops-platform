@@ -1,0 +1,348 @@
+openapi: 3.0.3
+info:
+  title: PayFlow API
+  description: |
+    Multi-tenant payment platform API (portfolio). Unit 4 covers onboarding and dual auth.
+
+    **Cross-tenant access:** Requests that authenticate as Tenant A but target Tenant B in the URL path
+    return **403 Forbidden** with `tenant_mismatch` (consistent policy for mistaken or hostile path ids).
+    Endpoints that look up a resource by id without a path tenant id use **404 Not Found** when the row
+    does not exist for the authenticated tenant (reserved for later resources).
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local API
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        maxLength: 200
+      description: Per-tenant idempotent create (R4). Reuse with different body returns 409.
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: Merchant integration key (`pf_live_…`).
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Dashboard session JWT (HS256 claims `tid`, `sub`, `exp`).
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      responses:
+        "200":
+          description: Process is running
+
+  /v1/tenants:
+    post:
+      summary: Create tenant and first API key (R1)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 128
+      responses:
+        "200":
+          description: Tenant and raw API key (returned once)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenant_id:
+                    type: string
+                    format: uuid
+                  api_key:
+                    type: string
+        "400":
+          description: Invalid input
+
+  /v1/tenants/me:
+    get:
+      summary: Current tenant metadata (API key or dashboard JWT)
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Authenticated tenant
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenant_id:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                  principal:
+                    type: string
+                    enum: [api_key, dashboard]
+        "401":
+          description: Missing or invalid credentials
+
+  /v1/tenants/{tenantID}/dashboard-users:
+    post:
+      summary: Create dashboard user (API key principal only)
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: tenantID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 10
+      responses:
+        "201":
+          description: User created
+        "400":
+          description: Invalid body
+        "403":
+          description: Wrong principal or tenant path mismatch (`tenant_mismatch`)
+        "409":
+          description: Email already exists for tenant
+
+  /v1/auth/login:
+    post:
+      summary: Dashboard login (email + password)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, email, password]
+              properties:
+                tenant_id:
+                  type: string
+                  format: uuid
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Bearer token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    example: Bearer
+                  expires_in:
+                    type: integer
+                    example: 86400
+        "400":
+          description: Invalid JSON or body
+        "401":
+          description: Invalid credentials
+
+  /v1/payments:
+    post:
+      summary: Create payment (mock settlement via worker)
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount_cents, currency]
+              properties:
+                amount_cents:
+                  type: integer
+                  format: int64
+                  minimum: 1
+                currency:
+                  type: string
+                  minLength: 3
+                  maxLength: 3
+      responses:
+        "201":
+          description: New payment accepted (first use of this idempotency key)
+        "200":
+          description: Idempotent replay (same body as original request)
+        "400":
+          description: Missing idempotency key or invalid body
+        "409":
+          description: Same idempotency key with different request body (`idempotency_conflict`)
+        "503":
+          description: Payment stored but settlement queue unavailable (`enqueue_failed`)
+
+  /v1/payments/{paymentID}:
+    get:
+      summary: Get payment and ledger timeline
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: paymentID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Payment for authenticated tenant including `ledger_events`
+        "404":
+          description: Unknown id or different tenant (`not_found`)
+
+  /v1/payments/{paymentID}/refunds:
+    post:
+      summary: Create refund (requires payment succeeded; worker completes mock settlement)
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: paymentID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        description: Omit body or send `{}` for a full refund; otherwise `amount_cents` (0 = full amount).
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount_cents:
+                  type: integer
+                  format: int64
+                  description: Omit or set 0 for full payment amount
+      responses:
+        "201":
+          description: Refund accepted (first use of idempotency key)
+        "200":
+          description: Idempotent replay
+        "400":
+          description: Invalid body or refund amount
+        "404":
+          description: Payment not found for tenant
+        "409":
+          description: Idempotency conflict or payment not refundable (`payment_not_refundable` / `idempotency_conflict`)
+        "503":
+          description: Refund stored but refund queue unavailable
+
+  /v1/refunds/{refundID}:
+    get:
+      summary: Get refund by id
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: refundID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Refund row
+        "404":
+          description: Not found
+
+  /v1/tenants/me/webhook:
+    patch:
+      summary: Configure merchant webhook URL and signing secret (MeAuth)
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                signing_secret:
+                  type: string
+                  description: HMAC secret (Key Vault in production)
+      responses:
+        "200":
+          description: Updated
+        "400":
+          description: Missing url
+
+  /v1/webhook-deliveries:
+    get:
+      summary: List webhook deliveries (filter by status, e.g. dlq)
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, succeeded, dlq]
+      responses:
+        "200":
+          description: List of delivery summaries
+
+  /v1/webhook-deliveries/{deliveryID}:
+    get:
+      summary: Webhook delivery detail (tenant scoped)
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: deliveryID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Full delivery row including payload and last_error
+        "404":
+          description: Unknown id or other tenant

@@ -1,0 +1,10 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform.lock.hcl
+terraform.tfvars
+ci.auto.tfvars
+ci-ephemeral.auto.tfvars
+override.tf
+*_override.tf

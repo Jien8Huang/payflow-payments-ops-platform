@@ -1,0 +1,11 @@
+# Copy to backend.tf and fill placeholders. Do not commit backend.tf if it contains secrets.
+# Create the storage account and container once per organization (outside this snippet).
+
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "payflow-tfstate-rg"
+    storage_account_name = "payflowtfstate"
+    container_name       = "tfstate"
+    key                    = "payflow-dev.tfstate"
+  }
+}

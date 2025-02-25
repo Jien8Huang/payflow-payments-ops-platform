@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars (gitignored). Use a globally unique name_prefix per subscription.
+
+name_prefix = "payflowdev"
+
+address_space          = ["10.42.0.0/16"]
+aks_subnet_cidr      = "10.42.1.0/24"
+postgres_subnet_cidr = "10.42.2.0/24"
+
+location = "westeurope"
+
+aks_node_count = 2
+aks_vm_size    = "Standard_B2s"
+
+postgres_sku = "B_Standard_B1ms"
+
+key_vault_purge_protection = false

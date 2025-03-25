@@ -1,0 +1,8 @@
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "payflow-tfstate-rg"
+    storage_account_name = "payflowtfstate"
+    container_name       = "tfstate"
+    key                    = "payflow-prod.tfstate"
+  }
+}

@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars (gitignored). Production: tighten SKUs and Key Vault purge protection.
+
+name_prefix = "payflowprd"
+
+address_space          = ["10.44.0.0/16"]
+aks_subnet_cidr      = "10.44.1.0/24"
+postgres_subnet_cidr = "10.44.2.0/24"
+
+location = "westeurope"
+
+aks_node_count = 3
+aks_vm_size    = "Standard_D2s_v5"
+
+# Upgrade to GP_* in real prod when cost and HA requirements are clear.
+postgres_sku = "B_Standard_B2ms"
+
+key_vault_purge_protection = true

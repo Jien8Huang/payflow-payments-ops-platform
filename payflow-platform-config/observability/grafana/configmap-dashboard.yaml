@@ -1,0 +1,20 @@
+# Sidecar label pattern for Grafana dashboard provisioning (operator-dependent).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payflow-grafana-dashboard-api-overview
+  labels:
+    app.kubernetes.io/name: payflow-grafana-dashboard
+    app.kubernetes.io/part-of: payflow
+    grafana_dashboard: "1"
+data:
+  api-overview.json: |
+    {
+      "title": "PayFlow API (stub)",
+      "uid": "payflow-api-overview",
+      "schemaVersion": 39,
+      "version": 1,
+      "timezone": "browser",
+      "panels": [],
+      "templating": { "list": [] }
+    }

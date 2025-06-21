@@ -1,0 +1,25 @@
+# Rule file for Prometheus (mount via sidecar/operator or replace with PrometheusRule CRD).
+# Recording rule is a non-alerting stub; replace expr when scrape targets exist.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payflow-prometheus-rules-stub
+  labels:
+    app.kubernetes.io/name: payflow-prometheus-rules
+    app.kubernetes.io/part-of: payflow
+data:
+  payflow-stub.rules.yml: |
+    groups:
+      - name: payflow_stub
+        interval: 30s
+        rules:
+          - record: payflow:build_info
+            expr: vector(1)
+            labels:
+              component: "stub"
+          - alert: PayFlowPlaceholderNeverFires
+            expr: vector(0) == vector(1)
+            labels:
+              severity: none
+            annotations:
+              summary: "Placeholder; wire real SLI queries (see docs/slo/payment-api-slo.md)."

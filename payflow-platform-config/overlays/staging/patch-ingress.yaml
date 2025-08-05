@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: payflow-api
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+spec:
+  tls:
+    - hosts:
+        - api.staging.payflow.example
+      secretName: payflow-api-tls
+  rules:
+    - host: api.staging.payflow.example
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: payflow-api
+                port:
+                  name: http

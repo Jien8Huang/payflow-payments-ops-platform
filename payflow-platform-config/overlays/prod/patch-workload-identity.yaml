@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: payflow-api
+  annotations:
+    azure.workload.identity/client-id: "00000000-0000-0000-0000-000000000021"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: payflow-worker
+  annotations:
+    azure.workload.identity/client-id: "00000000-0000-0000-0000-000000000022"

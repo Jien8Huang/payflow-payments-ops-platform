@@ -1,0 +1,16 @@
+# Union semantics: additional NetworkPolicies in this folder add allowed flows.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: payflow-default-deny
+  labels:
+    app.kubernetes.io/part-of: payflow
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: payflow
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress: []

@@ -1,0 +1,36 @@
+# Namespace-scoped read access for break-glass support and CI smoke jobs — not cluster-admin (R15).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: payflow-namespace-readonly
+  labels:
+    app.kubernetes.io/part-of: payflow
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "configmaps", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: payflow-namespace-readonly
+  labels:
+    app.kubernetes.io/part-of: payflow
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: payflow-namespace-readonly
+subjects:
+  # Bind your Entra group, CI robot ServiceAccount, or engineer user — see README.
+  - kind: Group
+    name: payflow-namespace-readers
+    apiGroup: rbac.authorization.k8s.io

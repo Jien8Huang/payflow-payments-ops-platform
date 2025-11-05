@@ -45,10 +45,6 @@ func (s *Server) postPayment(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"error":"invalid_payment"}`, http.StatusBadRequest)
 			return
 		}
-		if strings.Contains(err.Error(), "enqueue settlement") {
-			http.Error(w, `{"error":"enqueue_failed"}`, http.StatusServiceUnavailable)
-			return
-		}
 		http.Error(w, `{"error":"create_failed"}`, http.StatusInternalServerError)
 		return
 	}

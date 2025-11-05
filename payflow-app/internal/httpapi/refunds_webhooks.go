@@ -117,6 +117,49 @@ func (s *Server) getWebhookDelivery(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(m)
 }
 
+// postWebhookDeliveryRetry re-queues a DLQ delivery (R6 optional replay).
+func (s *Server) postWebhookDeliveryRetry(w http.ResponseWriter, r *http.Request) {
+	tid, ok := requireTenantID(w, r)
+	if !ok {
+		return
+	}
+	did, err := uuid.Parse(chi.URLParam(r, "deliveryID"))
+	if err != nil {
+		http.Error(w, `{"error":"invalid_id"}`, http.StatusBadRequest)
+		return
+	}
+	var status string
+	err = s.Pool.QueryRow(r.Context(), `
+		SELECT status FROM webhook_deliveries WHERE id = $1 AND tenant_id = $2
+	`, did, tid).Scan(&status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			http.Error(w, `{"error":"not_found"}`, http.StatusNotFound)
+			return
+		}
+		http.Error(w, `{"error":"load_failed"}`, http.StatusInternalServerError)
+		return
+	}
+	if status != "dlq" {
+		http.Error(w, `{"error":"not_dlq"}`, http.StatusBadRequest)
+		return
+	}
+	if _, err := s.Pool.Exec(r.Context(), `
+		UPDATE webhook_deliveries
+		SET status = 'pending', attempt_count = 0, last_error = '', next_attempt_at = now(), updated_at = now()
+		WHERE id = $1 AND tenant_id = $2 AND status = 'dlq'
+	`, did, tid); err != nil {
+		http.Error(w, `{"error":"update_failed"}`, http.StatusInternalServerError)
+		return
+	}
+	if err := s.Pub.PublishWebhookDelivery(r.Context(), did); err != nil {
+		http.Error(w, `{"error":"enqueue_failed"}`, http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "delivery_id": did.String()})
+}
+
 type postRefundBody struct {
 	AmountCents int64 `json:"amount_cents"` // 0 = full payment amount
 }
@@ -164,10 +207,6 @@ func (s *Server) postRefund(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, refund.ErrNotFound) {
 			http.Error(w, `{"error":"not_found"}`, http.StatusNotFound)
-			return
-		}
-		if strings.Contains(err.Error(), "enqueue refund settlement") {
-			http.Error(w, `{"error":"enqueue_failed"}`, http.StatusServiceUnavailable)
 			return
 		}
 		http.Error(w, `{"error":"create_failed"}`, http.StatusInternalServerError)

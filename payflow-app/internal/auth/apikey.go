@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/payflow/payflow-app/internal/audit"
 )
 
 const apiKeyPrefix = "pf_live_"
@@ -49,6 +51,9 @@ func MiddlewareAPIKey(pool *pgxpool.Pool) func(http.Handler) http.Handler {
 				WHERE ak.key_hash = $1 AND ak.revoked_at IS NULL
 			`, hash).Scan(&tenantID, &keyID)
 			if err != nil {
+				_ = audit.Write(r.Context(), pool, nil, "api_key_auth_failure", map[string]any{
+					"reason": "invalid_or_revoked",
+				})
 				http.Error(w, `{"error":"invalid_api_key"}`, http.StatusUnauthorized)
 				return
 			}

@@ -69,7 +69,7 @@ func SignatureHex(secret, timestamp, body string) string {
 	return sign(secret, timestamp, body)
 }
 
-// EnqueuePaymentSettledIfNeeded inserts a delivery row (deduped) and publishes when newly created.
+// EnqueuePaymentSettledIfNeeded inserts a delivery row (deduped) in a DB transaction, then publishes to Redis.
 func EnqueuePaymentSettledIfNeeded(ctx context.Context, pool *pgxpool.Pool, pub queue.Publisher, paymentID uuid.UUID) error {
 	var tenantID uuid.UUID
 	var amount int64
@@ -103,8 +103,14 @@ func EnqueuePaymentSettledIfNeeded(ctx context.Context, pool *pgxpool.Pool, pub 
 		return err
 	}
 
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	var id uuid.UUID
-	err = pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO webhook_deliveries (
 			tenant_id, payment_id, event_type, merchant_idempotency_key, target_url, payload, status, max_attempts
 		) VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'pending', 5)
@@ -112,15 +118,18 @@ func EnqueuePaymentSettledIfNeeded(ctx context.Context, pool *pgxpool.Pool, pub 
 		RETURNING id
 	`, tenantID, paymentID, EventPaymentSettled, merchantKey, hookURL.String, b).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
+		return tx.Commit(ctx)
 	}
 	if err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 	return pub.PublishWebhookDelivery(ctx, id)
 }
 
-// EnqueueRefundSucceededIfNeeded queues a refund.succeeded webhook after the refund row is succeeded.
+// EnqueueRefundSucceededIfNeeded inserts delivery in a DB transaction, then publishes to Redis.
 func EnqueueRefundSucceededIfNeeded(ctx context.Context, pool *pgxpool.Pool, pub queue.Publisher, refundID uuid.UUID) error {
 	var tenantID, paymentID uuid.UUID
 	var amount int64
@@ -155,8 +164,14 @@ func EnqueueRefundSucceededIfNeeded(ctx context.Context, pool *pgxpool.Pool, pub
 		return err
 	}
 
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	var id uuid.UUID
-	err = pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO webhook_deliveries (
 			tenant_id, payment_id, refund_id, event_type, merchant_idempotency_key, target_url, payload, status, max_attempts
 		) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'pending', 5)
@@ -164,9 +179,12 @@ func EnqueueRefundSucceededIfNeeded(ctx context.Context, pool *pgxpool.Pool, pub
 		RETURNING id
 	`, tenantID, paymentID, refundID, EventRefundSucceeded, merchantKey, hookURL.String, b).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
+		return tx.Commit(ctx)
 	}
 	if err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 	return pub.PublishWebhookDelivery(ctx, id)

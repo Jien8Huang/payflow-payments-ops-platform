@@ -13,6 +13,8 @@ import (
 
 	"github.com/payflow/payflow-app/internal/audit"
 	"github.com/payflow/payflow-app/internal/ledger"
+	"github.com/payflow/payflow-app/internal/metrics"
+	"github.com/payflow/payflow-app/internal/outbox"
 	"github.com/payflow/payflow-app/internal/queue"
 )
 
@@ -128,17 +130,13 @@ func (s *Service) Create(ctx context.Context, tenantID uuid.UUID, idempotencyKey
 	}); err != nil {
 		return Payment{}, false, err
 	}
+	if err := outbox.InsertPaymentSettlement(ctx, tx, id); err != nil {
+		return Payment{}, false, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return Payment{}, false, err
 	}
-
-	if err := s.Q.PublishPaymentSettlement(ctx, id); err != nil {
-		return Payment{
-			ID: id, TenantID: tenantID, AmountCents: amountCents, Currency: cur, Status: status,
-			IdempotencyKey: idempotencyKey, IdempotencyScope: ScopePaymentCreate, RequestHash: fp,
-			CreatedAt: createdAt, UpdatedAt: updatedAt,
-		}, true, fmt.Errorf("enqueue settlement: %w", err)
-	}
+	metrics.PaymentsCreated.Inc()
 
 	return Payment{
 		ID: id, TenantID: tenantID, AmountCents: amountCents, Currency: cur, Status: status,
@@ -166,6 +164,34 @@ func (s *Service) Get(ctx context.Context, tenantID, paymentID uuid.UUID) (Payme
 	return p, nil
 }
 
+// SettleMockTx advances pending → succeeded using an existing transaction (outbox worker).
+func SettleMockTx(ctx context.Context, tx pgx.Tx, paymentID uuid.UUID) error {
+	var tenantID uuid.UUID
+	var status string
+	err := tx.QueryRow(ctx, `
+		SELECT tenant_id, status FROM payments WHERE id = $1 FOR UPDATE
+	`, paymentID).Scan(&tenantID, &status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if status == "succeeded" {
+		return nil
+	}
+	if _, err := ledger.Append(ctx, tx, tenantID, paymentID, LedgerSettlementCompleted, LedgerSettlementCompleted, map[string]any{
+		"mock": true,
+	}); err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `
+		UPDATE payments SET status = 'succeeded', updated_at = now()
+		WHERE id = $1 AND status = 'pending'
+	`, paymentID)
+	return err
+}
+
 // SettleMock advances pending → succeeded and appends settlement ledger (idempotent under redelivery).
 func SettleMock(ctx context.Context, pool *pgxpool.Pool, paymentID uuid.UUID) error {
 	tx, err := pool.Begin(ctx)
@@ -173,30 +199,7 @@ func SettleMock(ctx context.Context, pool *pgxpool.Pool, paymentID uuid.UUID) er
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-
-	var tenantID uuid.UUID
-	var status string
-	err = tx.QueryRow(ctx, `
-		SELECT tenant_id, status FROM payments WHERE id = $1 FOR UPDATE
-	`, paymentID).Scan(&tenantID, &status)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return tx.Commit(ctx)
-		}
-		return err
-	}
-	if status == "succeeded" {
-		return tx.Commit(ctx)
-	}
-	if _, err := ledger.Append(ctx, tx, tenantID, paymentID, LedgerSettlementCompleted, LedgerSettlementCompleted, map[string]any{
-		"mock": true,
-	}); err != nil {
-		return err
-	}
-	if _, err = tx.Exec(ctx, `
-		UPDATE payments SET status = 'succeeded', updated_at = now()
-		WHERE id = $1 AND status = 'pending'
-	`, paymentID); err != nil {
+	if err := SettleMockTx(ctx, tx, paymentID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

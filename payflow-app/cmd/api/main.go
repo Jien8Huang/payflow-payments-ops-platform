@@ -55,6 +55,7 @@ func main() {
 		Tenants:   &tenant.Service{Pool: pool},
 		Payments:  &payment.Service{Pool: pool, Q: pub},
 		Refunds:   &refund.Service{Pool: pool, Q: pub},
+		Pub:       pub,
 		JWTSecret: []byte(cfg.JWTSecret),
 	}
 	handler := httpapi.NewRouter(srv)

@@ -14,6 +14,7 @@ import (
 	"github.com/payflow/payflow-app/internal/audit"
 	"github.com/payflow/payflow-app/internal/auth"
 	"github.com/payflow/payflow-app/internal/payment"
+	"github.com/payflow/payflow-app/internal/queue"
 	"github.com/payflow/payflow-app/internal/refund"
 	"github.com/payflow/payflow-app/internal/tenant"
 )
@@ -24,6 +25,7 @@ type Server struct {
 	Tenants   *tenant.Service
 	Payments  *payment.Service
 	Refunds   *refund.Service
+	Pub       queue.Publisher // webhook DLQ replay and legacy Redis enqueue paths
 	JWTSecret []byte
 }
 

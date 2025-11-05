@@ -30,6 +30,7 @@ func resetPayflowTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
 	_, err := pool.Exec(ctx, `
+		DROP TABLE IF EXISTS async_outbox CASCADE;
 		DROP TABLE IF EXISTS webhook_deliveries CASCADE;
 		DROP TABLE IF EXISTS refunds CASCADE;
 		DROP TABLE IF EXISTS ledger_events CASCADE;
@@ -51,6 +52,7 @@ func testHTTPServer(t *testing.T, pool *pgxpool.Pool, pub queue.Publisher) *http
 		Tenants:   &tenant.Service{Pool: pool},
 		Payments:  &payment.Service{Pool: pool, Q: pub},
 		Refunds:   &refund.Service{Pool: pool, Q: pub},
+		Pub:       pub,
 		JWTSecret: []byte("integration-test-jwt-secret"),
 	}
 	return httptest.NewServer(httpapi.NewRouter(srv))

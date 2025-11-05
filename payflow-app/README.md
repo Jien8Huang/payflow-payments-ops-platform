@@ -32,10 +32,11 @@ CI/CD for **build, test, security scan, container publish**; handoff via **immut
 ## Local run
 
 - `docker compose up -d` starts Postgres and Redis.
-- `go run ./cmd/api` starts the API on `LISTEN_ADDR` (default `:8080`). Set **`REDIS_URL`** (e.g. `redis://127.0.0.1:6379/0`) so accepted payments enqueue mock settlement work; if unset, the API uses a no-op queue (payments stay `pending` until you run settlement manually or wire Redis).
-- `go run ./cmd/worker` consumes **`payflow:settlement_jobs`** from Redis and advances `pending` → `succeeded` with idempotent ledger writes. Run the API (or `go run ./cmd/api`) once first so migrations apply to the database before starting the worker.
-- **Refunds / webhooks (Unit 6):** `POST /v1/payments/{id}/refunds` (API key + `Idempotency-Key`), `PATCH /v1/tenants/me/webhook` to set URL + signing secret, `GET /v1/webhook-deliveries` and `.../{id}` (MeAuth). Worker drains **`payflow:webhook_jobs`** and **`payflow:refund_jobs`** with timeouts and bounded retries; DLQ rows use `status=dlq`. Tune **`WEBHOOK_MAX_ATTEMPTS`** (default 5) via env on the worker process.
-- **Metrics (Unit 8):** increment a `payments_created` counter (or equivalent) when `payment.Service.Create` returns `created=true` — hook point is documented in `internal/payment/payment.go`.
+- `go run ./cmd/api` starts the API on `LISTEN_ADDR` (default `:8080`). **Mock settlement** for new payments and refunds is recorded in the **`async_outbox`** table in the same database transaction as the business row; the worker drains that outbox and then enqueues webhooks on Redis when needed.
+- Set **`REDIS_URL`** (e.g. `redis://127.0.0.1:6379/0`) for **webhook delivery** and for **legacy Redis settlement paths** still supported by the worker (`payflow:settlement_jobs`, `payflow:refund_jobs`). If unset, the API uses a no-op queue publisher (webhook retry and DLQ republish return `503` when Redis is required).
+- `go run ./cmd/worker` drains **`async_outbox`** (`payment_settlement`, `refund_settlement`) with row locking, then consumes **`payflow:settlement_jobs`**, **`payflow:webhook_jobs`**, and **`payflow:refund_jobs`** from Redis. Run the API (or `go run ./cmd/api`) once first so migrations apply to the database before starting the worker.
+- **Refunds / webhooks (Unit 6):** `POST /v1/payments/{id}/refunds` (API key + `Idempotency-Key`), `PATCH /v1/tenants/me/webhook` to set URL + signing secret, `GET /v1/webhook-deliveries` and `.../{id}` (MeAuth), `POST /v1/webhook-deliveries/{id}/retry` for DLQ replay. Worker drains **`payflow:webhook_jobs`** and **`payflow:refund_jobs`** with timeouts and bounded retries; DLQ rows use `status=dlq`. Tune **`WEBHOOK_MAX_ATTEMPTS`** (default 5) via env on the worker process.
+- **Metrics:** `GET /metrics` exposes Prometheus metrics including **`payflow_payments_created_total`** (incremented when a payment row is first created).
 - Integration tests: `INTEGRATION=1 INTEGRATION_RESET=1 go test ./test/integration/...` (`INTEGRATION_RESET=1` drops application tables including `payments` and `ledger_events` — use only against disposable dev DBs).
 
 ## Does not belong here

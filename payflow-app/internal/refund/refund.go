@@ -16,6 +16,7 @@ import (
 
 	"github.com/payflow/payflow-app/internal/audit"
 	"github.com/payflow/payflow-app/internal/ledger"
+	"github.com/payflow/payflow-app/internal/outbox"
 	"github.com/payflow/payflow-app/internal/queue"
 )
 
@@ -167,16 +168,11 @@ func (s *Service) Create(ctx context.Context, tenantID, paymentID uuid.UUID, ide
 	}); err != nil {
 		return Refund{}, false, err
 	}
-	if err := tx.Commit(ctx); err != nil {
+	if err := outbox.InsertRefundSettlement(ctx, tx, id); err != nil {
 		return Refund{}, false, err
 	}
-
-	if err := s.Q.PublishRefundSettlement(ctx, id); err != nil {
-		return Refund{
-			ID: id, TenantID: tenantID, PaymentID: paymentID, AmountCents: amt, Currency: cur, Status: status,
-			IdempotencyKey: idempotencyKey, IdempotencyScope: ScopeRefundCreate, RequestHash: fp,
-			CreatedAt: createdAt, UpdatedAt: updatedAt,
-		}, true, fmt.Errorf("enqueue refund settlement: %w", err)
+	if err := tx.Commit(ctx); err != nil {
+		return Refund{}, false, err
 	}
 
 	return Refund{
@@ -205,29 +201,23 @@ func (s *Service) Get(ctx context.Context, tenantID, refundID uuid.UUID) (Refund
 	return r, nil
 }
 
-// SettleMock marks a pending refund succeeded and appends ledger (idempotent).
-func SettleMock(ctx context.Context, pool *pgxpool.Pool, refundID uuid.UUID) error {
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
+// SettleMockTx marks a pending refund succeeded using an existing transaction.
+func SettleMockTx(ctx context.Context, tx pgx.Tx, refundID uuid.UUID) error {
 	var tenantID, paymentID uuid.UUID
 	var rstatus, pstatus string
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		SELECT r.tenant_id, r.payment_id, r.status, p.status
 		FROM refunds r JOIN payments p ON p.id = r.payment_id
 		WHERE r.id = $1 FOR UPDATE OF r, p
 	`, refundID).Scan(&tenantID, &paymentID, &rstatus, &pstatus)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return tx.Commit(ctx)
+			return nil
 		}
 		return err
 	}
 	if rstatus != "pending" {
-		return tx.Commit(ctx)
+		return nil
 	}
 	if pstatus != "succeeded" {
 		return fmt.Errorf("refund settle: payment %s status %q", paymentID, pstatus)
@@ -237,10 +227,21 @@ func SettleMock(ctx context.Context, pool *pgxpool.Pool, refundID uuid.UUID) err
 	}); err != nil {
 		return err
 	}
-	if _, err = tx.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
 		UPDATE refunds SET status = 'succeeded', updated_at = now()
 		WHERE id = $1 AND status = 'pending'
-	`, refundID); err != nil {
+	`, refundID)
+	return err
+}
+
+// SettleMock marks a pending refund succeeded and appends ledger (idempotent).
+func SettleMock(ctx context.Context, pool *pgxpool.Pool, refundID uuid.UUID) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := SettleMockTx(ctx, tx, refundID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

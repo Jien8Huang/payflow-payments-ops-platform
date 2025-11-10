@@ -101,6 +101,69 @@ paths:
         "401":
           description: Missing or invalid credentials
 
+  /v1/tenants/me/api-keys:
+    get:
+      summary: List API keys for the authenticated tenant (prefixes and metadata; no raw secrets)
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Key rows with optional `revoked_at`
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_keys:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        key_prefix:
+                          type: string
+                        created_at:
+                          type: string
+                          format: date-time
+                        revoked_at:
+                          type: string
+                          format: date-time
+        "401":
+          description: Missing or invalid credentials
+
+  /v1/tenants/me/api-keys/{keyID}:
+    delete:
+      summary: Revoke an API key (MeAuth; idempotent for already-revoked keys returns success when row exists)
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: keyID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+        "400":
+          description: Invalid key id
+        "401":
+          description: Missing or invalid credentials
+        "404":
+          description: Key not found for tenant
+
   /v1/tenants/{tenantID}/dashboard-users:
     post:
       summary: Create dashboard user (API key principal only)
@@ -208,8 +271,6 @@ paths:
           description: Missing idempotency key or invalid body
         "409":
           description: Same idempotency key with different request body (`idempotency_conflict`)
-        "503":
-          description: Payment stored but settlement queue unavailable (`enqueue_failed`)
 
   /v1/payments/{paymentID}:
     get:
@@ -265,8 +326,6 @@ paths:
           description: Payment not found for tenant
         "409":
           description: Idempotency conflict or payment not refundable (`payment_not_refundable` / `idempotency_conflict`)
-        "503":
-          description: Refund stored but refund queue unavailable
 
   /v1/refunds/{refundID}:
     get:
@@ -346,3 +405,45 @@ paths:
           description: Full delivery row including payload and last_error
         "404":
           description: Unknown id or other tenant
+
+  /v1/webhook-deliveries/{deliveryID}/retry:
+    post:
+      summary: Re-queue a DLQ webhook delivery (sets pending and publishes to the worker queue)
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: deliveryID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Re-queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  delivery_id:
+                    type: string
+                    format: uuid
+        "400":
+          description: Not in `dlq` (`not_dlq`) or invalid id
+        "401":
+          description: Missing or invalid credentials
+        "404":
+          description: Unknown id or other tenant
+        "503":
+          description: Redis publish failed (`enqueue_failed`)
+
+  /metrics:
+    get:
+      summary: Prometheus metrics exposition
+      responses:
+        "200":
+          description: text/plain exposition format

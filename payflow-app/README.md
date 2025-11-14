@@ -25,7 +25,7 @@ CI/CD for **build, test, security scan, container publish**; handoff via **immut
 
 ## CI and containers
 
-- **GitHub Actions:** `.github/workflows/payflow-app.yml` runs `gofmt`, `go vet`, `go mod verify`, `go test ./...`, multi-stage **Docker** builds (`--target api` / `--target worker`), and a **Trivy** scan on the API image.
+- **GitHub Actions:** `.github/workflows/payflow-app.yml` runs `gofmt`, `go vet`, `go mod verify`, and `go test ./... -count=1` on pushes and pull requests that touch `payflow-app/**`. Multi-stage **Docker** builds and **Trivy** image scans are documented in `docs/solutions/security-issues/payflow-ci-trivy-action-and-image-vulns.md` for teams extending CI.
 - **Checksums:** `go.sum` is committed for reproducible module downloads.
 - **Build:** from `payflow-app/`: `docker build -f Dockerfile --target api -t payflow-api:local .` and `--target worker` for the worker.
 

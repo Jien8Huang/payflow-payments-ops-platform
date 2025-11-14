@@ -1,0 +1,40 @@
+name: payflow-app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "payflow-app/**"
+      - ".github/workflows/payflow-app.yml"
+  pull_request:
+    paths:
+      - "payflow-app/**"
+      - ".github/workflows/payflow-app.yml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: payflow-app
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: payflow-app/go.mod
+          cache-dependency-path: payflow-app/go.sum
+
+      - name: gofmt
+        run: test -z "$(gofmt -s -l .)"
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go mod verify
+        run: go mod verify
+
+      - name: go test
+        run: go test ./... -count=1

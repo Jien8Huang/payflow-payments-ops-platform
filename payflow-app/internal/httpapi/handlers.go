@@ -21,12 +21,13 @@ import (
 
 // Server wires HTTP handlers.
 type Server struct {
-	Pool      *pgxpool.Pool
-	Tenants   *tenant.Service
-	Payments  *payment.Service
-	Refunds   *refund.Service
-	Pub       queue.Publisher // webhook DLQ replay and legacy Redis enqueue paths
-	JWTSecret []byte
+	Pool               *pgxpool.Pool
+	Tenants            *tenant.Service
+	Payments           *payment.Service
+	Refunds            *refund.Service
+	Pub                queue.Publisher // webhook DLQ replay and legacy Redis enqueue paths
+	JWTSecret          []byte
+	CORSAllowedOrigins []string // optional; enables CORSMiddleware when non-empty
 }
 
 func (s *Server) postTenants(w http.ResponseWriter, r *http.Request) {

@@ -19,6 +19,7 @@ import (
 	"github.com/payflow/payflow-app/internal/queue"
 	"github.com/payflow/payflow-app/internal/refund"
 	"github.com/payflow/payflow-app/internal/tenant"
+	"github.com/payflow/payflow-app/internal/tracing"
 )
 
 func main() {
@@ -26,6 +27,20 @@ func main() {
 
 	cfg := config.Load()
 	ctx := context.Background()
+
+	shutdownTrace, err := tracing.Init(ctx, "payflow-api")
+	if err != nil {
+		slog.Warn("tracing_init_failed", "error", err.Error())
+		shutdownTrace = func(context.Context) error { return nil }
+	} else {
+		defer func() {
+			sdCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := shutdownTrace(sdCtx); err != nil {
+				slog.Warn("tracing_shutdown", "error", err.Error())
+			}
+		}()
+	}
 
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -51,12 +66,13 @@ func main() {
 	}
 
 	srv := &httpapi.Server{
-		Pool:      pool,
-		Tenants:   &tenant.Service{Pool: pool},
-		Payments:  &payment.Service{Pool: pool, Q: pub},
-		Refunds:   &refund.Service{Pool: pool, Q: pub},
-		Pub:       pub,
-		JWTSecret: []byte(cfg.JWTSecret),
+		Pool:               pool,
+		Tenants:            &tenant.Service{Pool: pool},
+		Payments:           &payment.Service{Pool: pool, Q: pub},
+		Refunds:            &refund.Service{Pool: pool, Q: pub},
+		Pub:                pub,
+		JWTSecret:          []byte(cfg.JWTSecret),
+		CORSAllowedOrigins: config.SplitComma(cfg.CORSAllowedOrigins),
 	}
 	handler := httpapi.NewRouter(srv)
 

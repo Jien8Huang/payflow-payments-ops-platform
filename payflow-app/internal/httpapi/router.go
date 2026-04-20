@@ -13,6 +13,9 @@ import (
 func NewRouter(s *Server) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
+	if len(s.CORSAllowedOrigins) > 0 {
+		r.Use(CORSMiddleware(s.CORSAllowedOrigins))
+	}
 	r.Use(RequestID)
 	r.Use(RequestLogger)
 

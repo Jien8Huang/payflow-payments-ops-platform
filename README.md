@@ -1,10 +1,11 @@
 # PayFlow
 
-This directory holds **PayFlow** portfolio material: requirements under `docs/brainstorms/`, **cross-repo contracts** under `docs/contracts/`, the **implementation plan** under `docs/plans/`, and **four scaffold folders** that correspond to **four future git repositories** (`R25` in the requirements doc). Separate remotes are not created here; split when you are ready to version and permission each lifecycle independently.
+This directory holds **PayFlow** portfolio material: requirements under `docs/brainstorms/`, **cross-repo contracts** under `docs/contracts/`, the **implementation plan** under `docs/plans/`, and **scaffold folders** that correspond to **future git repositories** (`R25` in the requirements doc). Separate remotes are not created here; split when you are ready to version and permission each lifecycle independently.
 
 | Folder | Role |
 | --- | --- |
 | `payflow-app` | Application services, tests, container build CI |
+| `payflow-dashboard` | Vite + React dashboard (JWT path, **R7**) |
 | `payflow-terraform-modules` | Reusable Terraform modules |
 | `payflow-infra-live` | Per-environment Terraform roots and governance |
 | `payflow-platform-config` | Kubernetes manifests, observability and alerts as code |
@@ -16,6 +17,7 @@ flowchart TB
   ROOT[PayFlow portfolio repo]
   ROOT --> docFldr["docs/: brainstorms, contracts, plans, runbooks, solutions/"]
   ROOT --> payApp["payflow-app/: Go API, worker, tests, Dockerfile"]
+  ROOT --> dash["payflow-dashboard/: Vite React SPA"]
   ROOT --> tfmod["payflow-terraform-modules/: reusable Terraform"]
   ROOT --> infralive["payflow-infra-live/: per-environment roots"]
   ROOT --> pconf["payflow-platform-config/: Kustomize + observability"]
@@ -65,7 +67,7 @@ In the **CI** subgraph, the `test/integration` package is still **loaded** by `g
 | **Unit** | `payflow-app/internal/*/*_test.go` (e.g. `internal/auth`, `internal/payment`, `internal/tenant`) | Fast checks on pure logic: hashing, JWT round-trips, idempotency fingerprints, parsers. Uses `testing` and `t.Parallel()` where tests are independent. No database or network. |
 | **Integration** | `payflow-app/test/integration/*_test.go` | End-to-end HTTP behavior against a real **PostgreSQL** URL, schema from **`internal/migrate`**, and an in-process server via **`httptest`**. Uses shared helpers in `helpers_test.go` (router wiring, tenant creation, optional table reset). |
 
-Representative integration themes covered in code today: **payment idempotency under concurrency**, **tenant isolation**, **refund state**, **webhook delivery and DLQ-style API paths**, **onboarding and API keys**.
+Representative integration themes covered in code today: **payment idempotency under concurrency**, **tenant isolation**, **refund state**, **webhook delivery and DLQ-style API paths**, **onboarding and API keys**, **transactional outbox rows**, **API key list/revoke**, **Prometheus `/metrics`**, **DLQ retry**.
 
 ### Running tests locally
 

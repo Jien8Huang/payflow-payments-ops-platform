@@ -1,0 +1,35 @@
+name: payflow-dashboard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "payflow-dashboard/**"
+      - ".github/workflows/payflow-dashboard.yml"
+  pull_request:
+    paths:
+      - "payflow-dashboard/**"
+      - ".github/workflows/payflow-dashboard.yml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: payflow-dashboard
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: payflow-dashboard/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      - name: build
+        run: npm run build

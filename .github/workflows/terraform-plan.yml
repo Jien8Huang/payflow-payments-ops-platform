@@ -52,7 +52,7 @@ jobs:
           terraform validate
 
   plan-dev:
-    if: ${{ env.RUN_AZURE_PLAN_IN_CI == 'true' }}
+    if: ${{ vars.RUN_AZURE_PLAN_IN_CI == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

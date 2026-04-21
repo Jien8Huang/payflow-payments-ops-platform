@@ -13,7 +13,7 @@ resource "random_id" "kv" {
 
 locals {
   # Key Vault name: 3-24 chars, alphanumeric only (hyphens allowed in KV names actually - Azure allows hyphen)
-  kv_raw = "pf${replace(var.name_prefix, "-", "")}${random_id.kv.hex}"
+  kv_raw  = "pf${replace(var.name_prefix, "-", "")}${random_id.kv.hex}"
   kv_name = length(local.kv_raw) > 24 ? substr(local.kv_raw, 0, 24) : local.kv_raw
 }
 
@@ -24,21 +24,21 @@ module "network" {
 }
 
 module "keyvault" {
-  source                  = "../../modules/azure_keyvault"
-  key_vault_name          = local.kv_name
-  location                = module.network.location
-  resource_group_name     = module.network.resource_group_name
+  source                   = "../../modules/azure_keyvault"
+  key_vault_name           = local.kv_name
+  location                 = module.network.location
+  resource_group_name      = module.network.resource_group_name
   purge_protection_enabled = false
 }
 
 module "postgres" {
-  source                   = "../../modules/azure_postgres"
-  name_prefix              = var.name_prefix
-  location                 = module.network.location
-  resource_group_name      = module.network.resource_group_name
-  delegated_subnet_id      = module.network.postgres_subnet_id
-  virtual_network_id       = module.network.virtual_network_id
-  administrator_password   = random_password.postgres.result
+  source                 = "../../modules/azure_postgres"
+  name_prefix            = var.name_prefix
+  location               = module.network.location
+  resource_group_name    = module.network.resource_group_name
+  delegated_subnet_id    = module.network.postgres_subnet_id
+  virtual_network_id     = module.network.virtual_network_id
+  administrator_password = random_password.postgres.result
 }
 
 module "aks" {

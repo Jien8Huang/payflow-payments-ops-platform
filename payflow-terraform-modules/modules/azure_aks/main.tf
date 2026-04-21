@@ -6,7 +6,7 @@ resource "azurerm_kubernetes_cluster" "this" {
   kubernetes_version  = var.kubernetes_version
 
   workload_identity_enabled = true
-  oidc_issuer_enabled         = true
+  oidc_issuer_enabled       = true
 
   default_node_pool {
     name            = "system"

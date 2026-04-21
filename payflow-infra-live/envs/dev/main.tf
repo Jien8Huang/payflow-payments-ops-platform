@@ -1,6 +1,6 @@
 resource "random_password" "postgres" {
-  length  = 32
-  special = true
+  length           = 32
+  special          = true
   override_special = "!#%&*-_=+"
   min_lower        = 4
   min_upper        = 4
@@ -17,7 +17,7 @@ locals {
     ManagedBy   = "terraform"
     Project     = "payflow"
   })
-  kv_raw = "pf${replace(var.name_prefix, "-", "")}${random_id.kv.hex}"
+  kv_raw  = "pf${replace(var.name_prefix, "-", "")}${random_id.kv.hex}"
   kv_name = length(local.kv_raw) > 24 ? substr(local.kv_raw, 0, 24) : local.kv_raw
 }
 

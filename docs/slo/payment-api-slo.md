@@ -24,7 +24,9 @@ When burn rate exceeds policy, freeze non-critical releases and focus on reliabi
 
 ## Distributed tracing (R23)
 
-**Gap:** No OTLP exporter in `payflow-app` binaries in this portfolio revision. When added, document trace_id propagation from ingress → API → worker and sampling rate here.
+**Current state:** `payflow-app` includes an **optional** OTLP HTTP exporter (`internal/tracing`) that is **disabled by default** and only activates when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (and `OTEL_SDK_DISABLED` is not `"true"`). This document treats tracing as **not wired** until platform scrape/export plumbing and trace context propagation are demonstrated end-to-end.
+
+When wiring is completed, document trace_id propagation from ingress → API → worker and sampling rate here.
 
 ## Dashboards
 

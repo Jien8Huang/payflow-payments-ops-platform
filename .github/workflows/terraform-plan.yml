@@ -1,0 +1,78 @@
+name: payflow-infra-live
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "payflow-infra-live/**"
+      - ".github/workflows/terraform-plan.yml"
+  pull_request:
+    paths:
+      - "payflow-infra-live/**"
+      - ".github/workflows/terraform-plan.yml"
+  workflow_dispatch:
+
+env:
+  # Opt-in: when set to "true" and Azure OIDC vars are configured, the job will attempt a real `terraform plan`.
+  RUN_AZURE_PLAN_IN_CI: ${{ vars.RUN_AZURE_PLAN_IN_CI }}
+
+defaults:
+  run:
+    working-directory: payflow-infra-live
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: terraform fmt (check)
+        run: terraform fmt -check -recursive .
+
+      - name: terraform validate (dev)
+        run: |
+          cd envs/dev
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: terraform validate (staging)
+        run: |
+          cd envs/staging
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: terraform validate (prod)
+        run: |
+          cd envs/prod
+          terraform init -backend=false -input=false
+          terraform validate
+
+  plan-dev:
+    if: ${{ env.RUN_AZURE_PLAN_IN_CI == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: terraform plan (dev)
+        run: |
+          cd envs/dev
+          terraform init -input=false
+          terraform plan -input=false
+

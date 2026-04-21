@@ -38,3 +38,33 @@ jobs:
 
       - name: go test
         run: go test ./... -count=1
+
+  docker-build-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: build api image (local)
+        run: docker build -f Dockerfile --target api -t payflow-api:ci .
+
+      - name: build worker image (local)
+        run: docker build -f Dockerfile --target worker -t payflow-worker:ci .
+
+      - name: trivy scan api image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: payflow-api:ci
+          format: table
+          exit-code: "1"
+          severity: "CRITICAL,HIGH"
+
+      - name: trivy scan worker image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: payflow-worker:ci
+          format: table
+          exit-code: "1"
+          severity: "CRITICAL,HIGH"

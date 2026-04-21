@@ -1,0 +1,37 @@
+name: payflow-terraform-modules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "payflow-terraform-modules/**"
+      - ".github/workflows/terraform-modules.yml"
+  pull_request:
+    paths:
+      - "payflow-terraform-modules/**"
+      - ".github/workflows/terraform-modules.yml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: payflow-terraform-modules
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: terraform fmt (check)
+        run: terraform fmt -check -recursive .
+
+      - name: validate example (minimal)
+        run: |
+          cd examples/minimal
+          terraform init -backend=false -input=false
+          terraform validate
+

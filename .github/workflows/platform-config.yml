@@ -18,7 +18,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: install python deps (PyYAML)
         run: python3 -m pip install --upgrade pip pyyaml

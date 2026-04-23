@@ -64,9 +64,9 @@ module "aks" {
 }
 
 module "servicebus" {
-  source                  = "../../../payflow-terraform-modules/modules/azure_servicebus"
-  name_prefix             = var.name_prefix
-  location                = module.network.location
-  resource_group_name     = module.network.resource_group_name
-  tags                    = local.tags
+  source              = "../../../payflow-terraform-modules/modules/azure_servicebus"
+  name_prefix         = var.name_prefix
+  location            = module.network.location
+  resource_group_name = module.network.resource_group_name
+  tags                = local.tags
 }

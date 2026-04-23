@@ -26,3 +26,7 @@ output "postgres_fqdn" {
 output "key_vault_uri" {
   value = module.keyvault.vault_uri
 }
+
+output "servicebus_namespace_name" {
+  value = module.servicebus.namespace_name
+}

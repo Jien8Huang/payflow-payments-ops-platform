@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/payflow/payflow-app/internal/config"
 	"github.com/payflow/payflow-app/internal/db"
@@ -127,16 +126,32 @@ func main() {
 	}
 	defer pool.Close()
 
-	redisURL := cfg.RedisURL
-	if redisURL == "" {
-		redisURL = "redis://127.0.0.1:6379/0"
+	var jq queue.JobQueue
+	switch cfg.QueueBackend {
+	case "azservicebus":
+		if cfg.AzureServiceBusConnectionString == "" {
+			slog.Error("servicebus_config_missing", "hint", "set AZURE_SERVICEBUS_CONNECTION_STRING")
+			os.Exit(1)
+		}
+		sb, err := queue.NewAzureServiceBusFromConnectionString(cfg.AzureServiceBusConnectionString)
+		if err != nil {
+			slog.Error("servicebus_connect_failed", "error", err.Error())
+			os.Exit(1)
+		}
+		jq = sb
+	default:
+		redisURL := cfg.RedisURL
+		if redisURL == "" {
+			redisURL = "redis://127.0.0.1:6379/0"
+		}
+		rq, err := queue.NewRedis(redisURL)
+		if err != nil {
+			slog.Error("redis_connect_failed", "error", err.Error())
+			os.Exit(1)
+		}
+		jq = rq
 	}
-	rq, err := queue.NewRedis(redisURL)
-	if err != nil {
-		slog.Error("redis_connect_failed", "error", err.Error())
-		os.Exit(1)
-	}
-	defer func() { _ = rq.Close() }()
+	defer func() { _ = jq.Close() }()
 
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	maxAttempts := cfg.WebhookMaxAttempts
@@ -146,9 +161,10 @@ func main() {
 
 	slog.Info("worker_listening",
 		"outbox", "payment_settlement+refund_settlement",
-		"redis_settlement", rq.SettlementKey(),
-		"redis_webhook", queue.DefaultWebhookQueueKey,
-		"redis_refund", queue.DefaultRefundQueueKey,
+		"queue_backend", cfg.QueueBackend,
+		"settlement_key", jq.SettlementKey(),
+		"webhook_key", queue.DefaultWebhookQueueKey,
+		"refund_key", queue.DefaultRefundQueueKey,
 	)
 
 	for {
@@ -159,7 +175,7 @@ func main() {
 			continue
 		}
 		if fu.paymentID != nil {
-			if err := webhook.EnqueuePaymentSettledIfNeeded(ctx, pool, rq, *fu.paymentID); err != nil {
+			if err := webhook.EnqueuePaymentSettledIfNeeded(ctx, pool, jq, *fu.paymentID); err != nil {
 				slog.Error("webhook_enqueue_failed", "payment_id", fu.paymentID.String(), "error", err.Error())
 			} else {
 				slog.Info("payment_settled", "payment_id", fu.paymentID.String())
@@ -167,7 +183,7 @@ func main() {
 			continue
 		}
 		if fu.refundID != nil {
-			if err := webhook.EnqueueRefundSucceededIfNeeded(ctx, pool, rq, *fu.refundID); err != nil {
+			if err := webhook.EnqueueRefundSucceededIfNeeded(ctx, pool, jq, *fu.refundID); err != nil {
 				slog.Error("refund_webhook_enqueue_failed", "refund_id", fu.refundID.String(), "error", err.Error())
 			} else {
 				slog.Info("refund_settled", "refund_id", fu.refundID.String())
@@ -176,9 +192,9 @@ func main() {
 		}
 
 		popCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
-		key, id, err := rq.BRPopJob(popCtx, 5*time.Second)
+		key, id, err := jq.BRPopJob(popCtx, 5*time.Second)
 		cancel()
-		if errors.Is(err, redis.Nil) {
+		if errors.Is(err, queue.ErrNoJob) {
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
@@ -189,16 +205,16 @@ func main() {
 		}
 
 		switch key {
-		case rq.SettlementKey():
+		case jq.SettlementKey():
 			if err := payment.SettleMock(ctx, pool, id); err != nil {
 				slog.Error("settle_failed", "payment_id", id.String(), "error", err.Error())
 				continue
 			}
-			if err := webhook.EnqueuePaymentSettledIfNeeded(ctx, pool, rq, id); err != nil {
+			if err := webhook.EnqueuePaymentSettledIfNeeded(ctx, pool, jq, id); err != nil {
 				slog.Error("webhook_enqueue_failed", "payment_id", id.String(), "error", err.Error())
 				continue
 			}
-			slog.Info("payment_settled_redis", "payment_id", id.String())
+			slog.Info("payment_settled_queue", "payment_id", id.String())
 
 		case queue.DefaultWebhookQueueKey:
 			if err := webhook.ProcessDelivery(ctx, pool, httpClient, id, maxAttempts); err != nil {
@@ -212,11 +228,11 @@ func main() {
 				slog.Error("refund_settle_failed", "refund_id", id.String(), "error", err.Error())
 				continue
 			}
-			if err := webhook.EnqueueRefundSucceededIfNeeded(ctx, pool, rq, id); err != nil {
+			if err := webhook.EnqueueRefundSucceededIfNeeded(ctx, pool, jq, id); err != nil {
 				slog.Error("refund_webhook_enqueue_failed", "refund_id", id.String(), "error", err.Error())
 				continue
 			}
-			slog.Info("refund_settled_redis", "refund_id", id.String())
+			slog.Info("refund_settled_queue", "refund_id", id.String())
 
 		default:
 			slog.Warn("unknown_queue_key", "key", key)

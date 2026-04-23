@@ -55,14 +55,29 @@ func main() {
 	}
 
 	var pub queue.Publisher = queue.NoOpPublisher{}
-	if strings.TrimSpace(cfg.RedisURL) != "" {
-		rq, err := queue.NewRedis(cfg.RedisURL)
-		if err != nil {
-			slog.Error("redis_connect_failed", "error", err.Error())
+	switch cfg.QueueBackend {
+	case "azservicebus":
+		if strings.TrimSpace(cfg.AzureServiceBusConnectionString) == "" {
+			slog.Error("servicebus_config_missing", "hint", "set AZURE_SERVICEBUS_CONNECTION_STRING")
 			os.Exit(1)
 		}
-		defer func() { _ = rq.Close() }()
-		pub = rq
+		sb, err := queue.NewAzureServiceBusFromConnectionString(cfg.AzureServiceBusConnectionString)
+		if err != nil {
+			slog.Error("servicebus_connect_failed", "error", err.Error())
+			os.Exit(1)
+		}
+		defer func() { _ = sb.Close() }()
+		pub = sb
+	default:
+		if strings.TrimSpace(cfg.RedisURL) != "" {
+			rq, err := queue.NewRedis(cfg.RedisURL)
+			if err != nil {
+				slog.Error("redis_connect_failed", "error", err.Error())
+				os.Exit(1)
+			}
+			defer func() { _ = rq.Close() }()
+			pub = rq
+		}
 	}
 
 	srv := &httpapi.Server{

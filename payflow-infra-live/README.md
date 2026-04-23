@@ -13,6 +13,7 @@
 | AKS VM SKU (`terraform.tfvars.example`) | `Standard_B2s` | `Standard_B2s` | `Standard_D2s_v5` |
 | Postgres SKU (example) | Burstable small | Burstable small | Burstable `B_Standard_B2ms` (tune for real prod) |
 | Key Vault purge protection | `false` | `false` | `true` |
+| Service Bus (queues `settlement`, `webhook`, `refund`) | yes | yes | yes |
 | Remote state key (`backend.tf.example`) | `payflow-dev.tfstate` | `payflow-staging.tfstate` | `payflow-prod.tfstate` |
 
 ## Layout
@@ -30,7 +31,7 @@ payflow-infra-live/
 
 ## CI (Pattern A)
 
-Workflow file: **`.github/workflows/terraform-plan.yml`** at the **repository root** (not under `payflow-infra-live/.github/`). PRs run `terraform fmt -check` and `terraform validate` for all three envs. Azure-backed `terraform plan` is **opt-in** via repo variable `RUN_AZURE_PLAN_IN_CI` — see `docs/github-oidc-azure.md`.
+Workflow file: **`.github/workflows/terraform-plan.yml`** at the **repository root** (not under `payflow-infra-live/.github/`). PRs run `terraform fmt -check` and `terraform validate` for all three envs. Azure-backed `terraform plan` is **opt-in** via repo variable `RUN_AZURE_PLAN_IN_CI` — see `docs/github-oidc-azure.md`. When opt-in is enabled: **dev** plans on every workflow run that triggers the job; **staging** plans on pushes to `main` or manual `workflow_dispatch` with “run staging plan”; **prod** plans only via `workflow_dispatch` with “run prod plan” and the **`production`** GitHub Environment (required reviewers / protection rules apply there).
 
 ## First-time apply (human)
 

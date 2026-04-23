@@ -1,3 +1,11 @@
+github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.1 h1:DSDNVxqkoXJiko6x8a90zidoYqnYYa6c1MTzDKzKkTo=
+github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.1/go.mod h1:zGqV2R4Cr/k8Uye5w+dgQ06WJtEcbQG/8J7BB6hnCr4=
+github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 h1:ywEEhmNahHBihViHepv3xPBn1663uRv2t2q/ESv9seY=
+github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0/go.mod h1:iZDifYGJTIgIIkYRNWPENUnqx6bJ2xnSDFI2tjwZNuY=
+github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.9.0 h1:4qvUx+l3Z5Q2GcGJCVU1AH1cCrZ0/HHqDlYHDrsaHPw=
+github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus v1.9.0/go.mod h1:pSvDbbKKKZ/m3yIsZ56I62DJ8OYyjwP4IhIFIu2+5GQ=
+github.com/Azure/go-amqp v1.4.0 h1:Xj3caqi4comOF/L1Uc5iuBxR/pB6KumejC01YQOqOR4=
+github.com/Azure/go-amqp v1.4.0/go.mod h1:vZAogwdrkbyK3Mla8m/CxSc/aKdnTZ4IbPxl51Y5WZE=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bsm/ginkgo/v2 v2.12.0 h1:Ny8MWAHyOepLGlLKYmXG4IEkioBysk6GpaRTLC8zwWs=

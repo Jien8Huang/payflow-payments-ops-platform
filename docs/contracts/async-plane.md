@@ -4,8 +4,8 @@
 
 ## Brokers
 
-- **Staging / production:** Azure Service Bus **queues** (or topics + subscriptions if the design uses pub/sub). Authentication via **workload identity** or managed identity patterns consistent with AKS docs.
-- **Local development:** Redis (Streams or list + consumer pattern) behind the same **Go internal interface** as Service Bus. Semantic differences (ordering, duplicate detection, DLQ) are documented here and in code comments on the interface.
+- **Staging / production:** Azure Service Bus **queues** (or topics + subscriptions if the design uses pub/sub). Terraform creates namespace-scoped queues named **`settlement`**, **`webhook`**, and **`refund`** (`payflow-terraform-modules/modules/azure_servicebus`). Authentication via **connection string** (bootstrap / CI) or **workload identity** / managed identity per AKS docs for production hardening.
+- **Local development:** Redis (Streams or list + consumer pattern) behind the same **Go internal interface** as Service Bus. Semantic differences (ordering, duplicate detection, DLQ) are documented here and in code comments on the interface. Redis list names remain **`payflow:settlement_jobs`**, **`payflow:webhook_jobs`**, **`payflow:refund_jobs`**.
 
 ## Outbox / enqueue
 

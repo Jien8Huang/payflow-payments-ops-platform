@@ -31,6 +31,7 @@ IaC **module boundaries**, **versioned** platform abstractions, **blast-radius**
 | AKS (workload identity + OIDC issuer) | `modules/azure_aks/` |
 | PostgreSQL Flexible (VNet + private DNS) | `modules/azure_postgres/` |
 | Key Vault (RBAC-enabled) | `modules/azure_keyvault/` |
+| Service Bus namespace + settlement/webhook/refund queues | `modules/azure_servicebus/` |
 
 ## Minimal example
 

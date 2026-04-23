@@ -31,3 +31,14 @@ output "key_vault_uri" {
 output "aks_cluster_name" {
   value = module.aks.cluster_name
 }
+
+output "servicebus_namespace_name" {
+  description = "Azure Service Bus namespace (queues: settlement, webhook, refund)."
+  value       = module.servicebus.namespace_name
+}
+
+output "servicebus_primary_connection_string" {
+  description = "Bootstrap / non-pod use; prefer Key Vault + workload identity in production."
+  value       = module.servicebus.primary_connection_string
+  sensitive   = true
+}

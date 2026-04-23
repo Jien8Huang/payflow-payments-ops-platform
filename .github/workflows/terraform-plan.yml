@@ -5,15 +5,26 @@ on:
     branches: [main]
     paths:
       - "payflow-infra-live/**"
+      - "payflow-terraform-modules/**"
       - ".github/workflows/terraform-plan.yml"
   pull_request:
     paths:
       - "payflow-infra-live/**"
+      - "payflow-terraform-modules/**"
       - ".github/workflows/terraform-plan.yml"
   workflow_dispatch:
+    inputs:
+      run_staging_plan:
+        description: "Run terraform plan for staging (requires Azure OIDC vars and RUN_AZURE_PLAN_IN_CI)"
+        type: boolean
+        default: false
+      run_prod_plan:
+        description: "Run terraform plan for prod (requires production environment + Azure OIDC)"
+        type: boolean
+        default: false
 
 env:
-  # Opt-in: when set to "true" and Azure OIDC vars are configured, the job will attempt a real `terraform plan`.
+  # Opt-in: when set to "true" and Azure OIDC vars are configured, plan jobs may touch Azure.
   RUN_AZURE_PLAN_IN_CI: ${{ vars.RUN_AZURE_PLAN_IN_CI }}
 
 defaults:
@@ -76,3 +87,53 @@ jobs:
           terraform init -input=false
           terraform plan -input=false
 
+  plan-staging:
+    if: ${{ vars.RUN_AZURE_PLAN_IN_CI == 'true' && (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && github.event.inputs.run_staging_plan == 'true') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: terraform plan (staging)
+        run: |
+          cd envs/staging
+          terraform init -input=false
+          terraform plan -input=false
+
+  plan-prod:
+    if: ${{ vars.RUN_AZURE_PLAN_IN_CI == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.run_prod_plan == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: terraform plan (prod)
+        run: |
+          cd envs/prod
+          terraform init -input=false
+          terraform plan -input=false

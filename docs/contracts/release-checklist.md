@@ -34,8 +34,10 @@
 | Source | Consumed by | Examples |
 |--------|-------------|----------|
 | Terraform outputs / Key Vault | `payflow-platform-config` (CSI / Secret) | DB URL, Service Bus connection string reference |
-| Kubernetes Secret / CSI | `payflow-app` containers | `DATABASE_URL`, broker settings |
+| Kubernetes Secret / CSI | `payflow-app` containers | `DATABASE_URL`, `PAYFLOW_QUEUE_BACKEND`, `REDIS_URL`, `AZURE_SERVICEBUS_CONNECTION_STRING` |
 | CI OIDC | Terraform job | Azure subscription access without client secrets |
+
+**Queue backend:** `PAYFLOW_QUEUE_BACKEND=redis` (default when unset) uses `REDIS_URL` for API/worker. `PAYFLOW_QUEUE_BACKEND=azservicebus` uses `AZURE_SERVICEBUS_CONNECTION_STRING` (namespace connection string from Terraform output `servicebus_primary_connection_string` or Key Vault). Queue names in Azure are `settlement`, `webhook`, `refund` (see `payflow-terraform-modules/modules/azure_servicebus`).
 
 Exact names are defined alongside OpenAPI and manifests during implementation; this table is the **seam** between repos.
 

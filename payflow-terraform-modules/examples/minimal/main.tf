@@ -48,3 +48,10 @@ module "aks" {
   resource_group_name = module.network.resource_group_name
   aks_subnet_id       = module.network.aks_subnet_id
 }
+
+module "servicebus" {
+  source                  = "../../modules/azure_servicebus"
+  name_prefix             = var.name_prefix
+  location                = module.network.location
+  resource_group_name     = module.network.resource_group_name
+}

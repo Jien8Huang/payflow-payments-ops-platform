@@ -24,7 +24,7 @@ jobs:
         run: python3 -m pip install --upgrade pip pyyaml
 
       - name: install kustomize
-        uses: imranismail/setup-kustomize@v2
+        uses: imranismail/setup-kustomize@v3
 
       - name: lint yaml (syntax)
         run: scripts/ci/lint-yaml.sh
